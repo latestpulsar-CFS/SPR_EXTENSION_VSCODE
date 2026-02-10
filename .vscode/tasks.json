@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm: compile",
+      "dependsOn": "compile",
+      "problemMatcher": []
+    },
+    {
+      "label": "compile",
+      "type": "shell",
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": [
+        ".\\node_modules\\typescript\\bin\\tsc",
+        "-p",
+        "./"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$tsc"
+    }
+  ]
+}

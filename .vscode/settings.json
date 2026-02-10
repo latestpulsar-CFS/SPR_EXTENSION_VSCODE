@@ -1,0 +1,5 @@
+﻿{
+    "spher.baseUrl":  "http://127.0.0.1:7072",
+    "dart.sdkPath":  "C:\\Users\\DNA\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Google.DartSDK_Microsoft.Winget.Source_8wekyb3d8bbwe\\dart-sdk",
+    "spher.computeUiUrl":  "http://127.0.0.1:7191/ui/compute"
+}
