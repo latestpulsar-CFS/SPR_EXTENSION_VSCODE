@@ -5,6 +5,7 @@ export interface AmAgentConfig {
   amAgentPath: string;
   allowCargoFallback: boolean;
   orchestratorManifestPath: string;
+  amAgentCwd: string;
 }
 
 export interface AmAgentExecution {
@@ -53,7 +54,8 @@ export function parseJsonFromStdout(stdout: string): unknown {
 }
 
 async function executeMessage(config: AmAgentConfig, message: string): Promise<AmAgentExecution> {
-  const direct = await runProcess(config.amAgentPath, [message]);
+  const cwd = config.amAgentCwd && config.amAgentCwd.trim() ? config.amAgentCwd : undefined;
+  const direct = await runProcess(config.amAgentPath, [message], cwd);
   if (direct.code === 0) {
     return {
       ok: true,
@@ -68,7 +70,8 @@ async function executeMessage(config: AmAgentConfig, message: string): Promise<A
   if (config.allowCargoFallback && config.orchestratorManifestPath.trim()) {
     const cargo = await runProcess(
       "cargo",
-      ["run", "--manifest-path", config.orchestratorManifestPath, "--bin", "am-agent", "--", message]
+      ["run", "--manifest-path", config.orchestratorManifestPath, "--bin", "am-agent", "--", message],
+      cwd
     );
     return {
       ok: cargo.code === 0,

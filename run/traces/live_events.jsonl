@@ -1,0 +1,1 @@
+{"action":"am.run.autoupgrade","decision":null,"event_id":1,"gate_status":"unknown","latency_ms":null,"payload":{"message":"no_upgrades","ok":true,"outdated":[]},"proof_root":null,"reason":null,"root_hash":null,"status":"computed","trace_id":null,"ts":"2026-02-10T22:09:16.660441100+00:00","worm_ref":null}

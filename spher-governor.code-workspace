@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    // Workspace-level settings here are local to this workspace file
+    "files.exclude": {
+      "node_modules": true,
+      "out": true
+    }
+  }
+}

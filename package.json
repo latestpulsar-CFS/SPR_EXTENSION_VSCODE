@@ -2,7 +2,7 @@
   "name": "spher-governor-vscode",
   "displayName": "SPHER Governor",
   "description": "VS Code extension to govern AI actions through local SPHER/CFS pipeline.",
-  "version": "0.2.2",
+  "version": "0.2.8",
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -44,6 +44,10 @@
       {
         "command": "spher.openComputeUi",
         "title": "SPHER: Open Compute UI"
+      },
+      {
+        "command": "spher.emitHeartbeatEvent",
+        "title": "SPHER: Emit Heartbeat Event"
       }
     ],
     "viewsContainers": {
@@ -102,6 +106,11 @@
           "default": "am-agent",
           "description": "Executable path for local am-agent CLI"
         },
+        "spher.amAgentCwd": {
+          "type": "string",
+          "default": "C:/Users/DNA/Desktop/spher43",
+          "description": "Working directory used when launching am-agent so compute events are written in the orchestrator runtime folder"
+        },
         "spher.allowCargoFallback": {
           "type": "boolean",
           "default": true,
@@ -117,6 +126,11 @@
           "default": 1200,
           "minimum": 300,
           "description": "Polling interval in milliseconds for compute updates"
+        },
+        "spher.useStream": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use SSE stream (/api/v1/compute/stream) for near real-time compute events"
         }
       }
     }
@@ -137,4 +151,5 @@
     "@types/jest": "^29.5.3"
   }
 }
+
 

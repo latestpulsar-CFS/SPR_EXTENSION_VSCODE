@@ -1,6 +1,7 @@
-﻿import * as vscode from "vscode";
+import * as vscode from "vscode";
 import { AuditStore } from "../audit/store";
 import { isPrimusPhraseValid, requestPrimusCredentials } from "../auth/primus";
+import { executeControlMessage } from "../spher/amAgent";
 import { executePriorityMutation } from "../spher/amAgent";
 import { classifyIntent } from "../spher/policy";
 import { SpherClient } from "../spher/client";
@@ -10,6 +11,7 @@ export interface CommandDeps {
   client: SpherClient;
   panel: SpherPanel;
   audit: AuditStore;
+  baseUrl: () => string;
   setToken: (token: string) => Promise<void>;
   clearToken: () => Promise<void>;
   computeUiUrl: () => string;
@@ -17,10 +19,13 @@ export interface CommandDeps {
     amAgentPath: string;
     allowCargoFallback: boolean;
     orchestratorManifestPath: string;
+    amAgentCwd: string;
   };
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandDeps): void {
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   context.subscriptions.push(
     vscode.commands.registerCommand("spher.connectLocal", async () => {
       try {
@@ -146,10 +151,58 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
     vscode.commands.registerCommand("spher.openComputeUi", async () => {
       const url = deps.computeUiUrl();
       try {
-        await vscode.env.openExternal(vscode.Uri.parse(url));
+        const uri = vscode.Uri.parse(url);
+        const allowed = ["http", "https", "file", "vscode"];
+        if (!allowed.includes(uri.scheme)) {
+          vscode.window.showErrorMessage(
+            `Cannot open compute UI: unsupported URI scheme '${uri.scheme}'. Copy the URL and open it manually if needed.`
+          );
+          return;
+        }
+        await vscode.env.openExternal(uri);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(`Unable to open compute UI (${url}): ${msg}`);
+      }
+    }),
+
+    vscode.commands.registerCommand("spher.emitHeartbeatEvent", async () => {
+      try {
+        let result = await executeControlMessage(deps.amAgentConfig(), "SPHER::AWAKE");
+        if (!result.ok) {
+          result = await executeControlMessage(deps.amAgentConfig(), "AM::RUN::AUTOUPGRADE");
+        }
+        if (!result.ok) {
+          vscode.window.showErrorMessage(`Heartbeat failed: code=${result.code} ${result.stderr || result.stdout}`);
+          return;
+        }
+        let refreshed = false;
+        let refreshErr = "";
+        for (let i = 0; i < 3; i += 1) {
+          try {
+            const [state, events] = await Promise.all([deps.client.getState(), deps.client.getEvents(1, 40)]);
+            deps.panel.updateState(state);
+            deps.panel.updateEvents(events.items || []);
+            refreshed = true;
+            break;
+          } catch (err) {
+            refreshErr = err instanceof Error ? err.message : String(err);
+            await delay(700);
+          }
+        }
+
+        if (refreshed) {
+          deps.panel.info("Heartbeat event emitted and view refreshed.");
+          vscode.window.showInformationMessage("SPHER awake/heartbeat event emitted.");
+        } else {
+          deps.panel.info(`Heartbeat sent, but refresh failed on ${deps.baseUrl()}: ${refreshErr}`);
+          vscode.window.showWarningMessage(
+            `Heartbeat sent, but SPHER API is unreachable (${deps.baseUrl()}). Start/restart am-orch service.`
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Heartbeat failed: ${msg}`);
       }
     })
   );

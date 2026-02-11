@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { registerCommands } from "./commands/register";
 import { AuditStore } from "./audit/store";
 import { executeControlMessage } from "./spher/amAgent";
-import { SpherClient } from "./spher/client";
+import { ComputeStreamPayload, SpherClient } from "./spher/client";
 import { ComputeEvent } from "./spher/types";
 import { SpherPanel } from "./ui/panel";
 
@@ -25,10 +25,32 @@ function eventOrder(a: ComputeEvent, b: ComputeEvent): number {
   return eventTimeMs(b) - eventTimeMs(a);
 }
 
+function eventKey(e: ComputeEvent): string {
+  if (typeof e.event_id === "number") {
+    return `id:${e.event_id}`;
+  }
+  return `ts:${String(e.ts || "")}|action:${String(e.action || "")}|status:${String(e.status || "")}`;
+}
+
+function mergeRecentEvents(current: ComputeEvent[], incoming: ComputeEvent[]): ComputeEvent[] {
+  const m = new Map<string, ComputeEvent>();
+  for (const e of current) {
+    m.set(eventKey(e), e);
+  }
+  for (const e of incoming) {
+    m.set(eventKey(e), e);
+  }
+  return Array.from(m.values()).sort(eventOrder).slice(0, 40);
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   let tokenCache = await context.secrets.get(TOKEN_KEY);
   let lastAwakeAttemptMs = 0;
   let awakeInFlight = false;
+  let controlEndpointUnsupported = false;
+  let lastPollLogMs = 0;
+  let lastAgeMin = -1;
+  let recentEvents: ComputeEvent[] = [];
   const output = vscode.window.createOutputChannel("SPHER Governor");
   context.subscriptions.push(output);
 
@@ -49,6 +71,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     client,
     panel,
     audit,
+    baseUrl: () => getConfig().baseUrl,
     setToken: async (token: string) => {
       tokenCache = token;
       await context.secrets.store(TOKEN_KEY, token);
@@ -69,7 +92,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         orchestratorManifestPath: cfg.get<string>(
           "orchestratorManifestPath",
           "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml"
-        )
+        ),
+        amAgentCwd: cfg.get<string>("amAgentCwd", "C:/Users/DNA/Desktop/spher43")
       };
     }
   });
@@ -96,6 +120,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   panel.info(`Connecting to ${getConfig().baseUrl} ...`);
   output.appendLine(`activate: baseUrl=${getConfig().baseUrl}`);
 
+  const cfg = vscode.workspace.getConfiguration("spher");
+  const useStream = cfg.get<boolean>("useStream", true);
+  let streamStop = false;
+  let streamAbort: AbortController | undefined;
+
+  const applyStreamPayload = (payload: ComputeStreamPayload) => {
+    if (payload.status === "batch" && Array.isArray(payload.items) && payload.items.length > 0) {
+      recentEvents = mergeRecentEvents(recentEvents, payload.items);
+      panel.updateEvents(recentEvents);
+      output.appendLine(`stream: batch count=${payload.items.length} total=${recentEvents.length}`);
+    }
+  };
+
+  const startStreamLoop = () => {
+    if (!useStream) {
+      return;
+    }
+    void (async () => {
+      while (!streamStop) {
+        streamAbort = new AbortController();
+        try {
+          output.appendLine(`stream: connecting ${getConfig().baseUrl}/api/v1/compute/stream`);
+          panel.info(`Connecting stream to ${getConfig().baseUrl} ...`);
+          await client.streamEvents(applyStreamPayload, streamAbort.signal);
+          if (!streamStop) {
+            output.appendLine("stream: ended by server, retrying...");
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!streamStop) {
+            output.appendLine(`stream: disconnected err=${msg}`);
+          }
+        }
+        if (!streamStop) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+    })();
+  };
+
+  startStreamLoop();
+
   const pollMs = vscode.workspace.getConfiguration("spher").get<number>("pollMs", 1200);
   const pollOnce = async () => {
     try {
@@ -105,8 +171,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         client.getEvents(1, 200)
       ]);
       const recent = [...(events.items || [])].sort(eventOrder).slice(0, 40);
+      recentEvents = mergeRecentEvents(recentEvents, recent);
       panel.updateState(state);
-      panel.updateEvents(recent);
+      panel.updateEvents(recentEvents);
       const mode = state.strict_mutation_proof ? "strict" : "soft";
       status.text = `$(shield) SPHER: connected (${mode})`;
       status.tooltip = `llm_read_only=${String(state.llm_read_only)} strict_mutation_proof=${String(state.strict_mutation_proof)}`;
@@ -114,35 +181,62 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const ageMin = latestMs > 0 ? Math.floor((Date.now() - latestMs) / 60000) : -1;
       const freshness = ageMin >= 0 ? `latest_event_age_min=${ageMin}` : "latest_event_age_min=unknown";
       panel.info(`Connected to ${getConfig().baseUrl} (${freshness})`);
-      output.appendLine(`poll: connected ${getConfig().baseUrl} events=${recent.length} ${freshness}`);
+      const now = Date.now();
+      if (ageMin !== lastAgeMin || now - lastPollLogMs > 30000) {
+        output.appendLine(`poll: connected ${getConfig().baseUrl} events=${recentEvents.length} ${freshness}`);
+        lastAgeMin = ageMin;
+        lastPollLogMs = now;
+      }
 
       const cfg = vscode.workspace.getConfiguration("spher");
       const autoAwake = cfg.get<boolean>("autoAwake", true);
       const isAwake = state.spher_mode === true;
-      if (autoAwake && !isAwake && !awakeInFlight && Date.now() - lastAwakeAttemptMs > 15000) {
+      if (autoAwake && !isAwake && !awakeInFlight && Date.now() - lastAwakeAttemptMs > 120000) {
         awakeInFlight = true;
         lastAwakeAttemptMs = Date.now();
         panel.info("SPHER mode is false. Attempting SPHER::AWAKE via am-agent...");
         output.appendLine("poll: attempting SPHER::AWAKE");
         try {
-          const awake = await executeControlMessage(
-            {
-              amAgentPath: cfg.get<string>("amAgentPath", "am-agent"),
-              allowCargoFallback: cfg.get<boolean>("allowCargoFallback", true),
-              orchestratorManifestPath: cfg.get<string>(
-                "orchestratorManifestPath",
-                "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml"
-              )
-            },
-            "SPHER::AWAKE"
-          );
-          output.appendLine(`poll: SPHER::AWAKE ok=${awake.ok} code=${awake.code}`);
-          if (awake.ok) {
-            const refreshed = await client.getState();
-            panel.updateState(refreshed);
-            panel.info(`Auto-awake result: spher_mode=${String(refreshed.spher_mode)}`);
+          let awakened = false;
+          if (!controlEndpointUnsupported) {
+            try {
+              await client.sendControl("SPHER::AWAKE");
+              awakened = true;
+              output.appendLine("poll: SPHER::AWAKE via HTTP control endpoint accepted");
+            } catch (httpErr) {
+              const httpMsg = httpErr instanceof Error ? httpErr.message : String(httpErr);
+              output.appendLine(`poll: SPHER::AWAKE via HTTP control failed: ${httpMsg}`);
+              if (httpMsg.includes("HTTP 404")) {
+                controlEndpointUnsupported = true;
+                output.appendLine("poll: disabling HTTP awake attempts (control endpoint missing).");
+              }
+            }
+          }
+
+          if (!awakened) {
+            const awake = await executeControlMessage(
+              {
+                amAgentPath: cfg.get<string>("amAgentPath", "am-agent"),
+                allowCargoFallback: cfg.get<boolean>("allowCargoFallback", true),
+                orchestratorManifestPath: cfg.get<string>(
+                  "orchestratorManifestPath",
+                  "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml"
+                ),
+                amAgentCwd: cfg.get<string>("amAgentCwd", "C:/Users/DNA/Desktop/spher43")
+              },
+              "SPHER::AWAKE"
+            );
+            output.appendLine(`poll: SPHER::AWAKE via am-agent ok=${awake.ok} code=${awake.code}`);
+          }
+
+          const refreshed = await client.getState();
+          panel.updateState(refreshed);
+          if (refreshed.spher_mode === true) {
+            panel.info("Auto-awake result: spher_mode=true");
           } else {
-            panel.info("Auto-awake failed. Check Output -> SPHER Governor.");
+            panel.info(
+              "spher_mode is still false on am-orch. Add a server control endpoint (/am/control) or wake inside the running am-orch process."
+            );
           }
         } catch (awakeErr) {
           const awakeMsg = awakeErr instanceof Error ? awakeErr.message : String(awakeErr);
@@ -184,9 +278,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     void pollOnce();
   }, Math.max(300, pollMs));
 
-  context.subscriptions.push({ dispose: () => clearInterval(timer) });
+  context.subscriptions.push({
+    dispose: () => {
+      clearInterval(timer);
+      streamStop = true;
+      streamAbort?.abort();
+    }
+  });
 }
 
 export function deactivate(): void {
   // noop
 }
+
