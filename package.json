@@ -1,0 +1,155 @@
+{
+  "name": "spher-governor-vscode",
+  "displayName": "SPHER Governor",
+  "description": "VS Code extension to govern AI actions through local SPHER/CFS pipeline.",
+  "version": "0.2.8",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "publisher": "local",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "spher.connectLocal",
+        "title": "SPHER: Connect Local"
+      },
+      {
+        "command": "spher.runGovernedAction",
+        "title": "SPHER: Run Governed Action"
+      },
+      {
+        "command": "spher.setApiToken",
+        "title": "SPHER: Set API Token"
+      },
+      {
+        "command": "spher.toggleStrict",
+        "title": "SPHER: Toggle Strict Mode"
+      },
+      {
+        "command": "spher.showProof",
+        "title": "SPHER: Show Proof"
+      },
+      {
+        "command": "spher.exportAudit",
+        "title": "SPHER: Export Audit"
+      },
+      {
+        "command": "spher.openComputeUi",
+        "title": "SPHER: Open Compute UI"
+      },
+      {
+        "command": "spher.emitHeartbeatEvent",
+        "title": "SPHER: Emit Heartbeat Event"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "spherControl",
+          "title": "SPHER",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "spherControl": [
+        {
+          "id": "spherControlView",
+          "name": "SPHER Control",
+          "type": "webview"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SPHER Governor",
+      "properties": {
+        "spher.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:7072",
+          "description": "Base URL for local AM orchestrator service"
+        },
+        "spher.computeUiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:7191/ui/compute",
+          "description": "Dedicated compute UI URL for extension-side opening (separate port recommended)"
+        },
+        "spher.autoAwake": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically send SPHER::AWAKE via am-agent when spher_mode is false"
+        },
+        "spher.strictMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fail closed for uncertain or mutating actions"
+        },
+        "spher.httpReadOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Block mutating intents over extension HTTP path"
+        },
+        "spher.apiUser": {
+          "type": "string",
+          "default": "dev",
+          "description": "x-api-user header sent to AM orchestrator"
+        },
+        "spher.amAgentPath": {
+          "type": "string",
+          "default": "am-agent",
+          "description": "Executable path for local am-agent CLI"
+        },
+        "spher.amAgentCwd": {
+          "type": "string",
+          "default": "C:/Users/DNA/Desktop/spher43",
+          "description": "Working directory used when launching am-agent so compute events are written in the orchestrator runtime folder"
+        },
+        "spher.allowCargoFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fallback to cargo run when am-agent binary is not in PATH"
+        },
+        "spher.orchestratorManifestPath": {
+          "type": "string",
+          "default": "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml",
+          "description": "Manifest path used for cargo fallback execution"
+        },
+        "spher.pollMs": {
+          "type": "number",
+          "default": 1200,
+          "minimum": 300,
+          "description": "Polling interval in milliseconds for compute updates"
+        },
+        "spher.useStream": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use SSE stream (/api/v1/compute/stream) for near real-time compute events"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "package": "vsce package",
+    "test": "jest --passWithNoTests --colors"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.6.2",
+    "@vscode/vsce": "^3.1.0",
+    "jest": "^29.6.0",
+    "ts-jest": "^29.1.0",
+    "@types/jest": "^29.5.3"
+  }
+}
+
+
