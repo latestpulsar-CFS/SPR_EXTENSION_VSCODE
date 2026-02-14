@@ -19,6 +19,8 @@ Extension VS Code dediee a la gouvernance des actions IA via SPHER/CFS local.
   - `SPHER: Toggle Strict Mode`
   - `SPHER: Show Proof`
   - `SPHER: Export Audit`
+  - `SPHER: Open Compute UI`
+  - `SPHER: Emit Heartbeat Event`
 - Panel `SPHER Control`:
   - etat SPHER
   - terminal compute (polling)
@@ -53,9 +55,12 @@ Puis lancer l'extension en mode dev depuis VS Code (`F5`).
 - `spher.httpReadOnly`
 - `spher.apiUser`
 - `spher.amAgentPath`
+- `spher.amAgentCwd`
 - `spher.allowCargoFallback`
 - `spher.orchestratorManifestPath`
 - `spher.pollMs`
+- `spher.useStream`
+- `spher.autoAwake`
 - `spher.computeUiUrl`
 - `spher.dataphyEnabled`
 - `spher.dataphyCliPath`
@@ -64,12 +69,11 @@ Puis lancer l'extension en mode dev depuis VS Code (`F5`).
 - `spher.dataphyManifestPath`
 - `spher.dataphyCwd`
 
+Par defaut, les chemins locaux sensibles (`*Cwd`, `*ManifestPath`) sont vides/auto-detectes pour rester portables entre machines.
+
 ## Notes de securite
 
 - L'extension ne doit pas executer de mutation shell directe.
 - Les mutations passent par AM/CFS avec preuve.
 - Le token API est stocke dans VS Code SecretStorage.
-
-
-- `spher.computeUiUrl` (ex: `http://127.0.0.1:7191/ui/compute`)
 

@@ -205,8 +205,13 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       if (!target) {
         return;
       }
-      await deps.audit.exportTo(target);
-      vscode.window.showInformationMessage(`SPHER audit exported to ${target.fsPath}`);
+      try {
+        await deps.audit.exportTo(target);
+        vscode.window.showInformationMessage(`SPHER audit exported to ${target.fsPath}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showWarningMessage(`SPHER audit export failed: ${msg}`);
+      }
     }),
 
     vscode.commands.registerCommand("spher.openComputeUi", async () => {

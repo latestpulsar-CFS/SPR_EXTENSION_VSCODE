@@ -1,4 +1,5 @@
-﻿import * as vscode from "vscode";
+import * as vscode from "vscode";
+import { appendFile, copyFile } from "node:fs/promises";
 
 export class AuditStore {
   private readonly file: vscode.Uri;
@@ -10,6 +11,12 @@ export class AuditStore {
   async append(entry: Record<string, unknown>): Promise<void> {
     await vscode.workspace.fs.createDirectory(this.context.globalStorageUri);
     const line = JSON.stringify(entry) + "\n";
+
+    if (this.file.scheme === "file") {
+      await appendFile(this.file.fsPath, line, "utf8");
+      return;
+    }
+
     let current: Uint8Array | undefined;
     try {
       current = await vscode.workspace.fs.readFile(this.file);
@@ -22,7 +29,24 @@ export class AuditStore {
   }
 
   async exportTo(target: vscode.Uri): Promise<void> {
-    const data = await vscode.workspace.fs.readFile(this.file);
-    await vscode.workspace.fs.writeFile(target, data);
+    if (this.file.scheme === "file" && target.scheme === "file") {
+      try {
+        await copyFile(this.file.fsPath, target.fsPath);
+        return;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "ENOENT") {
+          throw new Error("No audit entries available to export yet.");
+        }
+        throw err;
+      }
+    }
+
+    try {
+      const data = await vscode.workspace.fs.readFile(this.file);
+      await vscode.workspace.fs.writeFile(target, data);
+    } catch {
+      throw new Error("No audit entries available to export yet.");
+    }
   }
 }

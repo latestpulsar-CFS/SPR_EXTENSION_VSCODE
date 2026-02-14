@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { existsSync } from "node:fs";
+import * as path from "node:path";
 import { registerCommands } from "./commands/register";
 import { AuditStore } from "./audit/store";
 import { executeControlMessage } from "./spher/amAgent";
@@ -63,7 +65,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     };
   };
 
-  const client = new SpherClient(getConfig);
+  const workspaceRoot = (): string => {
+    const first = vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!first || first.scheme !== "file") {
+      return "";
+    }
+    return first.fsPath;
+  };
+
+  const workspacePathIfExists = (...segments: string[]): string => {
+    const root = workspaceRoot();
+    if (!root) {
+      return "";
+    }
+    const candidate = path.join(root, ...segments);
+    return existsSync(candidate) ? candidate : "";
+  };
+
+  const amAgentRuntimeConfig = () => {
+    const cfg = vscode.workspace.getConfiguration("spher");
+    return {
+      amAgentPath: cfg.get<string>("amAgentPath", "am-agent"),
+      allowCargoFallback: cfg.get<boolean>("allowCargoFallback", true),
+      orchestratorManifestPath: cfg.get<string>(
+        "orchestratorManifestPath",
+        workspacePathIfExists("crates", "am_orchestrator", "Cargo.toml")
+      ),
+      amAgentCwd: cfg.get<string>("amAgentCwd", workspaceRoot())
+    };
+  };
+
+  const dataphyRuntimeConfig = () => {
+    const cfg = vscode.workspace.getConfiguration("spher");
+    return {
+      enabled: cfg.get<boolean>("dataphyEnabled", false),
+      strictMode: cfg.get<boolean>("strictMode", true),
+      dataphyCliPath: cfg.get<string>("dataphyCliPath", "dataphy_cli"),
+      dataphyTimeoutMs: cfg.get<number>("dataphyTimeoutMs", 8000),
+      dataphyUseCargoFallback: cfg.get<boolean>("dataphyUseCargoFallback", true),
+      dataphyManifestPath: cfg.get<string>("dataphyManifestPath", workspacePathIfExists("Cargo.toml")),
+      dataphyCwd: cfg.get<string>("dataphyCwd", workspaceRoot())
+    };
+  };
+
+  const extensionVersion = String((context.extension.packageJSON as { version?: unknown })?.version ?? "0.0.0");
+  const client = new SpherClient(getConfig, extensionVersion);
   const audit = new AuditStore(context);
   const panel = new SpherPanel(context);
 
@@ -84,36 +130,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const cfg = vscode.workspace.getConfiguration("spher");
       return cfg.get<string>("computeUiUrl", "http://127.0.0.1:7191/ui/compute");
     },
-    amAgentConfig: () => {
-      const cfg = vscode.workspace.getConfiguration("spher");
-      return {
-        amAgentPath: cfg.get<string>("amAgentPath", "am-agent"),
-        allowCargoFallback: cfg.get<boolean>("allowCargoFallback", true),
-        orchestratorManifestPath: cfg.get<string>(
-          "orchestratorManifestPath",
-          "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml"
-        ),
-        amAgentCwd: cfg.get<string>("amAgentCwd", "C:/Users/DNA/Desktop/spher43")
-      };
-    },
-    dataphyConfig: () => {
-      const cfg = vscode.workspace.getConfiguration("spher");
-      return {
-        enabled: cfg.get<boolean>("dataphyEnabled", false),
-        strictMode: cfg.get<boolean>("strictMode", true),
-        dataphyCliPath: cfg.get<string>("dataphyCliPath", "dataphy_cli"),
-        dataphyTimeoutMs: cfg.get<number>("dataphyTimeoutMs", 8000),
-        dataphyUseCargoFallback: cfg.get<boolean>("dataphyUseCargoFallback", true),
-        dataphyManifestPath: cfg.get<string>(
-          "dataphyManifestPath",
-          "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14/Cargo.toml"
-        ),
-        dataphyCwd: cfg.get<string>(
-          "dataphyCwd",
-          "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14"
-        )
-      };
-    }
+    amAgentConfig: amAgentRuntimeConfig,
+    dataphyConfig: dataphyRuntimeConfig
   });
 
   context.subscriptions.push(
@@ -232,18 +250,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }
 
           if (!awakened) {
-            const awake = await executeControlMessage(
-              {
-                amAgentPath: cfg.get<string>("amAgentPath", "am-agent"),
-                allowCargoFallback: cfg.get<boolean>("allowCargoFallback", true),
-                orchestratorManifestPath: cfg.get<string>(
-                  "orchestratorManifestPath",
-                  "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml"
-                ),
-                amAgentCwd: cfg.get<string>("amAgentCwd", "C:/Users/DNA/Desktop/spher43")
-              },
-              "SPHER::AWAKE"
-            );
+            const awake = await executeControlMessage(amAgentRuntimeConfig(), "SPHER::AWAKE");
             output.appendLine(`poll: SPHER::AWAKE via am-agent ok=${awake.ok} code=${awake.code}`);
           }
 

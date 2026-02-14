@@ -108,8 +108,8 @@
         },
         "spher.amAgentCwd": {
           "type": "string",
-          "default": "C:/Users/DNA/Desktop/spher43",
-          "description": "Working directory used when launching am-agent so compute events are written in the orchestrator runtime folder"
+          "default": "",
+          "description": "Working directory used when launching am-agent (empty = current workspace if available)"
         },
         "spher.allowCargoFallback": {
           "type": "boolean",
@@ -118,8 +118,8 @@
         },
         "spher.orchestratorManifestPath": {
           "type": "string",
-          "default": "C:/Users/DNA/Desktop/spher43/crates/am_orchestrator/Cargo.toml",
-          "description": "Manifest path used for cargo fallback execution"
+          "default": "",
+          "description": "Manifest path used for cargo fallback execution (empty = auto-detect in workspace)"
         },
         "spher.pollMs": {
           "type": "number",
@@ -155,13 +155,13 @@
         },
         "spher.dataphyManifestPath": {
           "type": "string",
-          "default": "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14/Cargo.toml",
-          "description": "Cargo manifest path used by DATAPHY fallback execution."
+          "default": "",
+          "description": "Cargo manifest path used by DATAPHY fallback execution (empty = auto-detect in workspace)."
         },
         "spher.dataphyCwd": {
           "type": "string",
-          "default": "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14",
-          "description": "Working directory for DATAPHY CLI/fallback execution."
+          "default": "",
+          "description": "Working directory for DATAPHY CLI/fallback execution (empty = current workspace if available)."
         }
       }
     }
@@ -182,5 +182,3 @@
     "@types/jest": "^29.5.3"
   }
 }
-
-

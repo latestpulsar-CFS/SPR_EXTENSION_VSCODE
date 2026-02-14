@@ -37,9 +37,11 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs = 12
 
 export class SpherClient {
   private readonly config: () => SpherClientConfig;
+  private readonly modelVersion: string;
 
-  constructor(config: () => SpherClientConfig) {
+  constructor(config: () => SpherClientConfig, modelVersion = "0.0.0") {
     this.config = config;
+    this.modelVersion = modelVersion;
   }
 
   async getState(): Promise<SpherState> {
@@ -49,7 +51,7 @@ export class SpherClient {
   async runReadOnlyAction(action: string, dataphyEnvelope?: DataphyEnvelope): Promise<unknown> {
     const req = {
       model_id: "spher-governor-vscode",
-      model_version: "0.2.9",
+      model_version: this.modelVersion,
       input: {
         task: "read_only_governed_action",
         action,
