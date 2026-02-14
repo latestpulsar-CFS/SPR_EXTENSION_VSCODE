@@ -1,4 +1,10 @@
-﻿export type GateStatus = "gate_allowed" | "gate_denied" | "unknown";
+export type GateStatus = "gate_allowed" | "gate_denied" | "unknown";
+
+export interface DataphyEnvelope {
+  anchor_sha256: string;
+  config_hash: string;
+  features_fixed: number[];
+}
 
 export interface SpherState {
   ok: boolean;
@@ -37,4 +43,6 @@ export interface GovernedActionResult {
   blocked?: string;
   detail?: string;
   response?: unknown;
+  dataphy_envelope?: DataphyEnvelope;
 }
+

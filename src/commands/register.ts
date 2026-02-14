@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
 import { AuditStore } from "../audit/store";
 import { isPrimusPhraseValid, requestPrimusCredentials } from "../auth/primus";
+import { computeDataphyEnvelope, DataphyExecConfig } from "../spher/dataphy";
 import { executeControlMessage } from "../spher/amAgent";
 import { executePriorityMutation } from "../spher/amAgent";
 import { classifyIntent } from "../spher/policy";
 import { SpherClient } from "../spher/client";
+import { DataphyEnvelope } from "../spher/types";
 import { SpherPanel } from "../ui/panel";
 
 export interface CommandDeps {
@@ -21,6 +23,7 @@ export interface CommandDeps {
     orchestratorManifestPath: string;
     amAgentCwd: string;
   };
+  dataphyConfig: () => DataphyExecConfig;
 }
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandDeps): void {
@@ -71,10 +74,46 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
         return;
       }
       const mode = classifyIntent(action);
+      const dataphyInput = JSON.stringify({
+        source: "vscode_extension",
+        action,
+        intent: mode
+      });
+      let dataphyEnvelope: DataphyEnvelope | undefined;
+      const dataphyCfg = deps.dataphyConfig();
+      if (dataphyCfg.enabled) {
+        try {
+          dataphyEnvelope = await computeDataphyEnvelope(dataphyInput, dataphyCfg);
+          deps.panel.updateDataphy(dataphyEnvelope);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          deps.panel.info(`DATAPHY unavailable: ${msg}`);
+          await deps.audit.append({
+            ts: new Date().toISOString(),
+            action,
+            mode,
+            ok: false,
+            blocked: "dataphy_failed",
+            error: msg
+          });
+          if (dataphyCfg.strictMode) {
+            vscode.window.showErrorMessage(`Action blocked (strict): DATAPHY failed - ${msg}`);
+            return;
+          }
+        }
+      }
+
       if (mode === "mutating") {
         const creds = await requestPrimusCredentials();
         if (!creds || !isPrimusPhraseValid(creds.phrase)) {
-          await deps.audit.append({ ts: new Date().toISOString(), action, mode, ok: false, blocked: "primus_auth_failed" });
+          await deps.audit.append({
+            ts: new Date().toISOString(),
+            action,
+            mode,
+            ok: false,
+            blocked: "primus_auth_failed",
+            dataphy_envelope: dataphyEnvelope
+          });
           vscode.window.showWarningMessage("Mutation denied: PR1MUS authorization failed.");
           return;
         }
@@ -89,7 +128,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
             action,
             mode,
             ok,
-            am_priority: result
+            am_priority: result,
+            dataphy_envelope: dataphyEnvelope
           });
           if (ok) {
             vscode.window.showInformationMessage("Mutation executed via AM::PRIORITY path.");
@@ -98,19 +138,40 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          await deps.audit.append({ ts: new Date().toISOString(), action, mode, ok: false, error: msg });
+          await deps.audit.append({
+            ts: new Date().toISOString(),
+            action,
+            mode,
+            ok: false,
+            error: msg,
+            dataphy_envelope: dataphyEnvelope
+          });
           vscode.window.showErrorMessage(`Mutation path failed: ${msg}`);
         }
         return;
       }
 
       try {
-        const response = await deps.client.runReadOnlyAction(action);
-        await deps.audit.append({ ts: new Date().toISOString(), action, mode, ok: true, response });
+        const response = await deps.client.runReadOnlyAction(action, dataphyEnvelope);
+        await deps.audit.append({
+          ts: new Date().toISOString(),
+          action,
+          mode,
+          ok: true,
+          response,
+          dataphy_envelope: dataphyEnvelope
+        });
         vscode.window.showInformationMessage("Read-only governed action submitted.");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await deps.audit.append({ ts: new Date().toISOString(), action, mode, ok: false, error: msg });
+        await deps.audit.append({
+          ts: new Date().toISOString(),
+          action,
+          mode,
+          ok: false,
+          error: msg,
+          dataphy_envelope: dataphyEnvelope
+        });
         vscode.window.showErrorMessage(`Governed action failed: ${msg}`);
       }
     }),

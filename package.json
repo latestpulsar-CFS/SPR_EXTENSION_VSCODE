@@ -2,7 +2,7 @@
   "name": "spher-governor-vscode",
   "displayName": "SPHER Governor",
   "description": "VS Code extension to govern AI actions through local SPHER/CFS pipeline.",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -131,6 +131,37 @@
           "type": "boolean",
           "default": true,
           "description": "Use SSE stream (/api/v1/compute/stream) for near real-time compute events"
+        },
+        "spher.dataphyEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compute DATAPHY envelope for each governed action."
+        },
+        "spher.dataphyCliPath": {
+          "type": "string",
+          "default": "dataphy_cli",
+          "description": "Path to DATAPHY CLI executable."
+        },
+        "spher.dataphyTimeoutMs": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 1000,
+          "description": "Timeout in milliseconds for DATAPHY CLI execution."
+        },
+        "spher.dataphyUseCargoFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run `cargo run --bin dataphy_cli` when DATAPHY CLI is not found."
+        },
+        "spher.dataphyManifestPath": {
+          "type": "string",
+          "default": "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14/Cargo.toml",
+          "description": "Cargo manifest path used by DATAPHY fallback execution."
+        },
+        "spher.dataphyCwd": {
+          "type": "string",
+          "default": "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14",
+          "description": "Working directory for DATAPHY CLI/fallback execution."
         }
       }
     }

@@ -56,6 +56,13 @@ Puis lancer l'extension en mode dev depuis VS Code (`F5`).
 - `spher.allowCargoFallback`
 - `spher.orchestratorManifestPath`
 - `spher.pollMs`
+- `spher.computeUiUrl`
+- `spher.dataphyEnabled`
+- `spher.dataphyCliPath`
+- `spher.dataphyTimeoutMs`
+- `spher.dataphyUseCargoFallback`
+- `spher.dataphyManifestPath`
+- `spher.dataphyCwd`
 
 ## Notes de securite
 
@@ -64,5 +71,5 @@ Puis lancer l'extension en mode dev depuis VS Code (`F5`).
 - Le token API est stocke dans VS Code SecretStorage.
 
 
-- spher.computeUiUrl (ex: http://127.0.0.1:7191/ui/compute)
+- `spher.computeUiUrl` (ex: `http://127.0.0.1:7191/ui/compute`)
 

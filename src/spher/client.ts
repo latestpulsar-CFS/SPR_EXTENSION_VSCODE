@@ -1,4 +1,4 @@
-import { ComputeEvent, EventsResponse, SpherState } from "./types";
+import { ComputeEvent, DataphyEnvelope, EventsResponse, SpherState } from "./types";
 
 export interface SpherClientConfig {
   baseUrl: string;
@@ -46,14 +46,15 @@ export class SpherClient {
     return this.getJson<SpherState>("/am/state");
   }
 
-  async runReadOnlyAction(action: string): Promise<unknown> {
+  async runReadOnlyAction(action: string, dataphyEnvelope?: DataphyEnvelope): Promise<unknown> {
     const req = {
       model_id: "spher-governor-vscode",
-      model_version: "0.2.8",
+      model_version: "0.2.9",
       input: {
         task: "read_only_governed_action",
         action,
-        intent: "read_only"
+        intent: "read_only",
+        dataphy_envelope: dataphyEnvelope ?? null
       },
       policy: {
         snc: { drift_max: 0.2, fail_closed: true },

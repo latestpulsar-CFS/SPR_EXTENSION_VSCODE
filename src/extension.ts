@@ -95,6 +95,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         ),
         amAgentCwd: cfg.get<string>("amAgentCwd", "C:/Users/DNA/Desktop/spher43")
       };
+    },
+    dataphyConfig: () => {
+      const cfg = vscode.workspace.getConfiguration("spher");
+      return {
+        enabled: cfg.get<boolean>("dataphyEnabled", false),
+        strictMode: cfg.get<boolean>("strictMode", true),
+        dataphyCliPath: cfg.get<string>("dataphyCliPath", "dataphy_cli"),
+        dataphyTimeoutMs: cfg.get<number>("dataphyTimeoutMs", 8000),
+        dataphyUseCargoFallback: cfg.get<boolean>("dataphyUseCargoFallback", true),
+        dataphyManifestPath: cfg.get<string>(
+          "dataphyManifestPath",
+          "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14/Cargo.toml"
+        ),
+        dataphyCwd: cfg.get<string>(
+          "dataphyCwd",
+          "C:/Users/DNA/Downloads/DATAPHY_CODEX_PACK_MALEK_Mahdi_2026-02-14"
+        )
+      };
     }
   });
 

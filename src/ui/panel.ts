@@ -1,10 +1,11 @@
-﻿import * as vscode from "vscode";
-import { ComputeEvent, SpherState } from "../spher/types";
+import * as vscode from "vscode";
+import { ComputeEvent, DataphyEnvelope, SpherState } from "../spher/types";
 
 export class SpherPanel {
   private readonly webviews = new Set<vscode.Webview>();
   private latestState?: SpherState;
   private latestEvents: ComputeEvent[] = [];
+  private latestDataphy?: DataphyEnvelope;
   private latestInfo = "";
 
   constructor(_context: vscode.ExtensionContext) {
@@ -19,6 +20,11 @@ export class SpherPanel {
   updateEvents(events: ComputeEvent[]): void {
     this.latestEvents = events;
     this.broadcast({ type: "events", events });
+  }
+
+  updateDataphy(dataphy?: DataphyEnvelope): void {
+    this.latestDataphy = dataphy;
+    this.broadcast({ type: "dataphy", dataphy: dataphy ?? null });
   }
 
   info(message: string): void {
@@ -36,6 +42,9 @@ export class SpherPanel {
     }
     if (this.latestEvents.length > 0) {
       void webview.postMessage({ type: "events", events: this.latestEvents });
+    }
+    if (this.latestDataphy) {
+      void webview.postMessage({ type: "dataphy", dataphy: this.latestDataphy });
     }
     if (this.latestInfo) {
       void webview.postMessage({ type: "info", message: this.latestInfo });
@@ -62,6 +71,7 @@ export class SpherPanel {
   private renderHtml(initialState?: SpherState, initialEvents: ComputeEvent[] = [], initialInfo = ""): string {
     const stateJson = JSON.stringify(initialState ?? {}).replace(/</g, "\\u003c");
     const eventsJson = JSON.stringify(initialEvents ?? []).replace(/</g, "\\u003c");
+    const dataphyJson = JSON.stringify(this.latestDataphy ?? null).replace(/</g, "\\u003c");
     const infoJson = JSON.stringify(initialInfo ?? "").replace(/</g, "\\u003c");
     return `<!doctype html>
 <html>
@@ -85,10 +95,15 @@ pre { background: #020617; border: 1px solid #1e293b; border-radius: 8px; paddin
     <h3>Compute Terminal</h3>
     <pre id="term">No events yet.</pre>
   </div>
+  <div class="card">
+    <h3>Dataphy Envelope</h3>
+    <pre id="dataphy">No dataphy envelope.</pre>
+  </div>
   <div class="small" id="info"></div>
 <script>
 const stateEl = document.getElementById('state');
 const termEl = document.getElementById('term');
+const dataphyEl = document.getElementById('dataphy');
 const infoEl = document.getElementById('info');
 const renderState = (s) => {
   stateEl.innerHTML = [
@@ -108,14 +123,31 @@ const renderEvents = (events) => {
   termEl.textContent = lines.length ? lines.join('\\n') : 'No events yet.';
   termEl.scrollTop = termEl.scrollHeight;
 };
+const renderDataphy = (d) => {
+  if (!d) {
+    dataphyEl.textContent = 'No dataphy envelope.';
+    return;
+  }
+  const feat = Array.isArray(d.features_fixed) ? d.features_fixed : [];
+  const head = feat.slice(0, 8);
+  dataphyEl.textContent =
+    'anchor_sha256=' + String(d.anchor_sha256 || '-') + '\\n' +
+    'config_hash=' + String(d.config_hash || '-') + '\\n' +
+    'features_len=' + String(feat.length) + '\\n' +
+    'features_head=' + JSON.stringify(head);
+};
 const initialState = ${stateJson};
 const initialEvents = ${eventsJson};
+const initialDataphy = ${dataphyJson};
 const initialInfo = ${infoJson};
 if (initialState && Object.keys(initialState).length) {
   renderState(initialState);
 }
 if (Array.isArray(initialEvents) && initialEvents.length) {
   renderEvents(initialEvents);
+}
+if (initialDataphy) {
+  renderDataphy(initialDataphy);
 }
 if (initialInfo) {
   infoEl.textContent = initialInfo;
@@ -128,6 +160,9 @@ window.addEventListener('message', (event) => {
   if (msg.type === 'events') {
     renderEvents(msg.events || []);
   }
+  if (msg.type === 'dataphy') {
+    renderDataphy(msg.dataphy || null);
+  }
   if (msg.type === 'info') {
     infoEl.textContent = msg.message || '';
   }
@@ -137,3 +172,4 @@ window.addEventListener('message', (event) => {
 </html>`;
   }
 }
+
