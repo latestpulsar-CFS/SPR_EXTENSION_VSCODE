@@ -15,10 +15,12 @@ module.exports = {
   },
   window: {
     showErrorMessage: jest.fn(),
-    showInformationMessage: jest.fn()
+    showInformationMessage: jest.fn(),
+    showTextDocument: jest.fn().mockResolvedValue(true)
   },
   workspace: {
-    getConfiguration: () => ({ get: (_, d) => d })
+    getConfiguration: () => ({ get: (_, d) => d }),
+    openTextDocument: jest.fn().mockResolvedValue({ uri: { scheme: "untitled" } })
   }
   ,
   __registered: registered

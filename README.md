@@ -19,6 +19,8 @@ Extension VS Code dediee a la gouvernance des actions IA via SPHER/CFS local.
   - `SPHER: Toggle Strict Mode`
   - `SPHER: Show Proof`
   - `SPHER: Export Audit`
+  - `SPHER: Open Audit Log`
+  - `SPHER: Show Audit Summary`
   - `SPHER: Open Compute UI`
   - `SPHER: Emit Heartbeat Event`
 - Panel `SPHER Control`:
