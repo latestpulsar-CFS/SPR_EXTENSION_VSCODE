@@ -42,12 +42,24 @@
         "title": "SPHER: Export Audit"
       },
       {
+        "command": "spher.openAuditLog",
+        "title": "SPHER: Open Audit Log"
+      },
+      {
+        "command": "spher.showAuditSummary",
+        "title": "SPHER: Show Audit Summary"
+      },
+      {
         "command": "spher.openComputeUi",
         "title": "SPHER: Open Compute UI"
       },
       {
         "command": "spher.emitHeartbeatEvent",
         "title": "SPHER: Emit Heartbeat Event"
+      },
+      {
+        "command": "spher.awake",
+        "title": "SPHER::AWAKE"
       }
     ],
     "viewsContainers": {

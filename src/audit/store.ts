@@ -28,6 +28,44 @@ export class AuditStore {
     await vscode.workspace.fs.writeFile(this.file, next);
   }
 
+
+  async readRecent(limit = 20): Promise<Record<string, unknown>[]> {
+    let data: Uint8Array;
+    try {
+      data = await vscode.workspace.fs.readFile(this.file);
+    } catch {
+      return [];
+    }
+
+    const lines = Buffer.from(data)
+      .toString("utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    const recent = lines.slice(-Math.max(1, limit));
+    return recent.map((line) => {
+      try {
+        const parsed = JSON.parse(line);
+        return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : { value: parsed };
+      } catch {
+        return { raw: line };
+      }
+    });
+  }
+
+  async openInEditor(): Promise<void> {
+    await vscode.workspace.fs.createDirectory(this.context.globalStorageUri);
+    try {
+      await vscode.workspace.fs.stat(this.file);
+    } catch {
+      await vscode.workspace.fs.writeFile(this.file, Buffer.from("", "utf8"));
+    }
+
+    const doc = await vscode.workspace.openTextDocument(this.file);
+    await vscode.window.showTextDocument(doc, { preview: false });
+  }
+
   async exportTo(target: vscode.Uri): Promise<void> {
     if (this.file.scheme === "file" && target.scheme === "file") {
       try {

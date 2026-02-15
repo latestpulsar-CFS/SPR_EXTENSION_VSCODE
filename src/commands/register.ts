@@ -28,6 +28,45 @@ export interface CommandDeps {
 
 export function registerCommands(context: vscode.ExtensionContext, deps: CommandDeps): void {
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const emitHeartbeatEvent = async () => {
+    try {
+      let result = await executeControlMessage(deps.amAgentConfig(), "SPHER::AWAKE");
+      if (!result.ok) {
+        result = await executeControlMessage(deps.amAgentConfig(), "AM::RUN::AUTOUPGRADE");
+      }
+      if (!result.ok) {
+        vscode.window.showErrorMessage(`Heartbeat failed: code=${result.code} ${result.stderr || result.stdout}`);
+        return;
+      }
+      let refreshed = false;
+      let refreshErr = "";
+      for (let i = 0; i < 3; i += 1) {
+        try {
+          const [state, events] = await Promise.all([deps.client.getState(), deps.client.getEvents(1, 40)]);
+          deps.panel.updateState(state);
+          deps.panel.updateEvents(events.items || []);
+          refreshed = true;
+          break;
+        } catch (err) {
+          refreshErr = err instanceof Error ? err.message : String(err);
+          await delay(700);
+        }
+      }
+
+      if (refreshed) {
+        deps.panel.info("Heartbeat event emitted and view refreshed.");
+        vscode.window.showInformationMessage("SPHER awake/heartbeat event emitted.");
+      } else {
+        deps.panel.info(`Heartbeat sent, but refresh failed on ${deps.baseUrl()}: ${refreshErr}`);
+        vscode.window.showWarningMessage(
+          `Heartbeat sent, but SPHER API is unreachable (${deps.baseUrl()}). Start/restart am-orch service.`
+        );
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      vscode.window.showErrorMessage(`Heartbeat failed: ${msg}`);
+    }
+  };
 
   context.subscriptions.push(
     vscode.commands.registerCommand("spher.connectLocal", async () => {
@@ -214,6 +253,33 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
     }),
 
+    vscode.commands.registerCommand("spher.openAuditLog", async () => {
+      try {
+        await deps.audit.openInEditor();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Unable to open audit log: ${msg}`);
+      }
+    }),
+
+    vscode.commands.registerCommand("spher.showAuditSummary", async () => {
+      try {
+        const entries = await deps.audit.readRecent(20);
+        if (!entries.length) {
+          vscode.window.showInformationMessage("No audit entries available yet.");
+          return;
+        }
+        const doc = await vscode.workspace.openTextDocument({
+          language: "json",
+          content: JSON.stringify({ count: entries.length, items: entries }, null, 2)
+        });
+        await vscode.window.showTextDocument(doc, { preview: false });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Unable to show audit summary: ${msg}`);
+      }
+    }),
+
     vscode.commands.registerCommand("spher.openComputeUi", async () => {
       const url = deps.computeUiUrl();
       try {
@@ -232,44 +298,8 @@ export function registerCommands(context: vscode.ExtensionContext, deps: Command
       }
     }),
 
-    vscode.commands.registerCommand("spher.emitHeartbeatEvent", async () => {
-      try {
-        let result = await executeControlMessage(deps.amAgentConfig(), "SPHER::AWAKE");
-        if (!result.ok) {
-          result = await executeControlMessage(deps.amAgentConfig(), "AM::RUN::AUTOUPGRADE");
-        }
-        if (!result.ok) {
-          vscode.window.showErrorMessage(`Heartbeat failed: code=${result.code} ${result.stderr || result.stdout}`);
-          return;
-        }
-        let refreshed = false;
-        let refreshErr = "";
-        for (let i = 0; i < 3; i += 1) {
-          try {
-            const [state, events] = await Promise.all([deps.client.getState(), deps.client.getEvents(1, 40)]);
-            deps.panel.updateState(state);
-            deps.panel.updateEvents(events.items || []);
-            refreshed = true;
-            break;
-          } catch (err) {
-            refreshErr = err instanceof Error ? err.message : String(err);
-            await delay(700);
-          }
-        }
+    vscode.commands.registerCommand("spher.emitHeartbeatEvent", emitHeartbeatEvent),
 
-        if (refreshed) {
-          deps.panel.info("Heartbeat event emitted and view refreshed.");
-          vscode.window.showInformationMessage("SPHER awake/heartbeat event emitted.");
-        } else {
-          deps.panel.info(`Heartbeat sent, but refresh failed on ${deps.baseUrl()}: ${refreshErr}`);
-          vscode.window.showWarningMessage(
-            `Heartbeat sent, but SPHER API is unreachable (${deps.baseUrl()}). Start/restart am-orch service.`
-          );
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        vscode.window.showErrorMessage(`Heartbeat failed: ${msg}`);
-      }
-    })
+    vscode.commands.registerCommand("spher.awake", emitHeartbeatEvent)
   );
 }
